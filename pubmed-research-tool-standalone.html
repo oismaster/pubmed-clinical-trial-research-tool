@@ -208,48 +208,56 @@
             }
 
             try {
+                // Use a CORS proxy to access NCBI APIs
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=10&retmode=json`;
                 
-                const response = await fetch(searchUrl);
+                const response = await fetch(proxyUrl + encodeURIComponent(searchUrl));
                 const data = await response.json();
                 
                 if (data.esearchresult && data.esearchresult.idlist.length > 0) {
                     const ids = data.esearchresult.idlist;
                     await fetchArticleDetails(ids);
                 } else {
-                    document.getElementById('searchResults').innerHTML = '<p class="text-gray-500">No results found</p>';
+                    document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">No results found</p>';
                     document.getElementById('searchResults').classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Search error:', error);
-                alert('Error searching PubMed. Please try again.');
+                alert('Error searching PubMed. This may be due to network restrictions. Please try again or use a different network.');
             }
         }
 
         async function fetchArticleDetails(ids) {
             try {
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json`;
-                const response = await fetch(summaryUrl);
+                const response = await fetch(proxyUrl + encodeURIComponent(summaryUrl));
                 const data = await response.json();
                 
                 const results = [];
                 for (const id of ids) {
-                    if (data.result[id]) {
+                    if (data.result && data.result[id]) {
                         const article = data.result[id];
                         results.push({
                             pmid: id,
-                            title: cleanPubMedText(article.title),
-                            authors: article.authors ? article.authors.map(a => a.name).join(', ') : 'Unknown',
-                            journal: article.fulljournalname || 'Unknown',
-                            year: new Date(article.pubdate).getFullYear() || 'Unknown'
+                            title: cleanPubMedText(article.title || 'Title not available'),
+                            authors: article.authors ? article.authors.map(a => a.name).join(', ') : 'Authors not available',
+                            journal: article.fulljournalname || article.source || 'Journal not available',
+                            year: article.pubdate ? new Date(article.pubdate).getFullYear() || 'Year not available' : 'Year not available'
                         });
                     }
                 }
                 
-                displaySearchResults(results);
+                if (results.length > 0) {
+                    displaySearchResults(results);
+                } else {
+                    document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">No article details could be retrieved</p>';
+                    document.getElementById('searchResults').classList.remove('hidden');
+                }
             } catch (error) {
                 console.error('Error fetching article details:', error);
-                alert('Error fetching article details. Please try again.');
+                alert('Error fetching article details. This may be due to network restrictions. Please try again or use a different network.');
             }
         }
 
@@ -279,8 +287,9 @@
 
         async function displayAbstract(pmid) {
             try {
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
-                const response = await fetch(abstractUrl);
+                const response = await fetch(proxyUrl + encodeURIComponent(abstractUrl));
                 const xmlText = await response.text();
                 
                 const parser = new DOMParser();
@@ -346,7 +355,7 @@
                 
             } catch (error) {
                 console.error('Error fetching abstract:', error);
-                alert('Error fetching abstract. Please try again.');
+                alert('Error fetching abstract. This may be due to network restrictions. Please try again or use a different network.');
             }
         }
 
