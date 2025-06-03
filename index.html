@@ -211,75 +211,57 @@
             document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">Searching PubMed...</p>';
             document.getElementById('searchResults').classList.remove('hidden');
 
-            try {
-                const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=10&retmode=json`;
-                
-                // Try multiple CORS proxy services
-                const proxyServices = [
-                    'https://cors-anywhere.herokuapp.com/',
-                    'https://api.allorigins.win/raw?url=',
-                    'https://cors.sh/',
-                    'https://proxy.cors.sh/'
-                ];
-
-                let data = null;
-                let lastError = null;
-
-                for (const proxy of proxyServices) {
-                    try {
-                        const proxyUrl = proxy.includes('allorigins') ? 
-                            proxy + encodeURIComponent(searchUrl) : 
-                            proxy + searchUrl;
-                        
-                        const response = await fetch(proxyUrl, {
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        });
-                        
-                        if (response.ok) {
-                            const text = await response.text();
-                            data = JSON.parse(text);
-                            break;
-                        }
-                    } catch (error) {
-                        lastError = error;
-                        console.log(`Proxy ${proxy} failed:`, error);
-                        continue;
-                    }
-                }
-
-                // If all proxies fail, try direct access (might work in some browsers/networks)
-                if (!data) {
-                    try {
-                        const response = await fetch(searchUrl);
-                        data = await response.json();
-                    } catch (error) {
-                        throw lastError || error;
-                    }
-                }
-                
-                if (data && data.esearchresult && data.esearchresult.idlist.length > 0) {
-                    const ids = data.esearchresult.idlist;
-                    await fetchArticleDetails(ids);
-                } else {
-                    document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">No results found</p>';
-                }
-            } catch (error) {
-                console.error('Search error:', error);
-                document.getElementById('resultsList').innerHTML = `
-                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <h3 class="text-red-800 font-semibold mb-2">Unable to Search PubMed</h3>
-                        <p class="text-red-700 mb-3">This appears to be a browser security restriction. Please try one of these solutions:</p>
-                        <ul class="text-red-700 text-sm space-y-1 list-disc list-inside">
-                            <li>Use Chrome/Edge and temporarily disable CORS (start with --disable-web-security --user-data-dir=/tmp/chrome_dev)</li>
-                            <li>Install a CORS browser extension like "CORS Unblock"</li>
-                            <li>Use Firefox which may have different CORS policies</li>
-                            <li>Access this tool through a web server instead of opening the file directly</li>
-                        </ul>
+            // Display manual search option since automated search has CORS restrictions
+            document.getElementById('resultsList').innerHTML = `
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 class="text-blue-800 font-semibold mb-3">Manual PubMed Search Required</h3>
+                    <p class="text-blue-700 mb-4">Due to browser security restrictions, please follow these steps:</p>
+                    
+                    <div class="bg-white rounded border p-4 mb-4">
+                        <p class="font-medium mb-2">1. Search PubMed manually:</p>
+                        <a href="https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(query)}" target="_blank" 
+                           class="text-blue-600 underline hover:text-blue-800">
+                            Click here to search: "${query}"
+                        </a>
                     </div>
-                `;
+                    
+                    <div class="bg-white rounded border p-4 mb-4">
+                        <p class="font-medium mb-2">2. Enter a PMID number from your search results:</p>
+                        <div class="flex gap-2">
+                            <input type="text" 
+                                   id="manualPmid" 
+                                   placeholder="Enter PMID (e.g., 12345678)"
+                                   class="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button onclick="loadManualArticle()" 
+                                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                Load Article
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <p class="text-blue-600 text-sm">Once you load an article, you can view its abstract and extract clinical trial data using AI.</p>
+                </div>
+            `;
+        }
+
+        async function loadManualArticle() {
+            const pmid = document.getElementById('manualPmid').value.trim();
+            
+            if (!pmid || !/^\d+$/.test(pmid)) {
+                alert('Please enter a valid PMID number (digits only)');
+                return;
             }
+
+            // Create a mock result to display the article
+            const mockResult = [{
+                pmid: pmid,
+                title: `Article PMID: ${pmid}`,
+                authors: 'Loading...',
+                journal: 'Loading...',
+                year: 'Loading...'
+            }];
+            
+            displaySearchResults(mockResult);
         }
 
         async function fetchArticleDetails(ids) {
@@ -386,125 +368,118 @@
         }
 
         async function displayAbstract(pmid) {
-            try {
-                const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
-                
-                // Try multiple CORS proxy services
-                const proxyServices = [
-                    'https://cors-anywhere.herokuapp.com/',
-                    'https://api.allorigins.win/raw?url=',
-                    'https://cors.sh/',
-                    'https://proxy.cors.sh/'
-                ];
-
-                let xmlText = null;
-                let lastError = null;
-
-                for (const proxy of proxyServices) {
-                    try {
-                        const proxyUrl = proxy.includes('allorigins') ? 
-                            proxy + encodeURIComponent(abstractUrl) : 
-                            proxy + abstractUrl;
-                        
-                        const response = await fetch(proxyUrl, {
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        });
-                        
-                        if (response.ok) {
-                            xmlText = await response.text();
-                            break;
-                        }
-                    } catch (error) {
-                        lastError = error;
-                        console.log(`Proxy ${proxy} failed for abstract:`, error);
-                        continue;
-                    }
-                }
-
-                // If all proxies fail, try direct access
-                if (!xmlText) {
-                    try {
-                        const response = await fetch(abstractUrl);
-                        xmlText = await response.text();
-                    } catch (error) {
-                        throw lastError || error;
-                    }
-                }
-                
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-                
-                const article = xmlDoc.querySelector('PubmedArticle');
-                if (!article) {
-                    alert('Could not fetch article details');
-                    return;
-                }
-
-                // Extract article data
-                const titleElement = article.querySelector('ArticleTitle');
-                const abstractElement = article.querySelector('Abstract AbstractText');
-                const authorsElements = article.querySelectorAll('Author');
-                const journalElement = article.querySelector('Journal Title');
-                const yearElement = article.querySelector('PubDate Year');
-                const doiElement = article.querySelector('ArticleId[IdType="doi"]');
-
-                const authors = Array.from(authorsElements).map(author => {
-                    const lastName = author.querySelector('LastName')?.textContent || '';
-                    const foreName = author.querySelector('ForeName')?.textContent || '';
-                    return `${lastName} ${foreName}`.trim();
-                }).filter(name => name);
-
-                currentAbstractData = {
-                    pmcid: `PMC${pmid}`,
-                    pmid: pmid,
-                    doi: doiElement ? cleanPubMedText(doiElement.textContent) : '',
-                    title: titleElement ? cleanPubMedText(titleElement.textContent) : '',
-                    authors: authors,
-                    firstAuthor: authors.length > 0 ? authors[0] : 'Not specified',
-                    journal: journalElement ? cleanPubMedText(journalElement.textContent) : '',
-                    year: yearElement ? parseInt(yearElement.textContent) : new Date().getFullYear(),
-                    abstract: abstractElement ? cleanPubMedText(abstractElement.textContent) : 'Abstract not available'
-                };
-
-                // Display abstract
-                const abstractHtml = `
+            // Show manual input form for abstract data
+            const abstractHtml = `
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 class="text-blue-800 font-semibold mb-3">Manual Abstract Entry for PMID: ${pmid}</h3>
+                    <p class="text-blue-700 mb-4">Please copy the abstract from PubMed and paste it below:</p>
+                    
+                    <div class="mb-4">
+                        <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" 
+                           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                            Open PMID ${pmid} in PubMed
+                        </a>
+                    </div>
+                    
                     <div class="space-y-4">
                         <div>
-                            <span class="font-semibold">PMID:</span> ${currentAbstractData.pmid}
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Title:</label>
+                            <input type="text" id="manualTitle" placeholder="Copy and paste the article title"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
-                        ${currentAbstractData.doi ? `<div><span class="font-semibold">DOI:</span> ${currentAbstractData.doi}</div>` : ''}
+                        
                         <div>
-                            <span class="font-semibold">Title:</span> ${currentAbstractData.title}
+                            <label class="block text-sm font-medium text-gray-700 mb-1">First Author:</label>
+                            <input type="text" id="manualAuthor" placeholder="First author name"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Journal:</label>
+                                <input type="text" id="manualJournal" placeholder="Journal name"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Year:</label>
+                                <input type="number" id="manualYear" placeholder="2024" min="1900" max="2030"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        
                         <div>
-                            <span class="font-semibold">Authors:</span> ${currentAbstractData.authors.join(', ')}
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Abstract:</label>
+                            <textarea id="manualAbstract" rows="8" 
+                                      placeholder="Copy and paste the complete abstract from PubMed"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                         </div>
-                        <div>
-                            <span class="font-semibold">Journal:</span> ${currentAbstractData.journal} (${currentAbstractData.year})
-                        </div>
-                        <div>
-                            <span class="font-semibold">Abstract:</span>
-                            <p class="mt-2 text-gray-700 leading-relaxed">${currentAbstractData.abstract}</p>
-                        </div>
+                        
+                        <button onclick="processManualAbstract('${pmid}')" 
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                            Process Abstract and Enable AI Extraction
+                        </button>
                     </div>
-                `;
-                
-                document.getElementById('abstractContent').innerHTML = abstractHtml;
-                document.getElementById('abstractDisplay').classList.remove('hidden');
-                
-            } catch (error) {
-                console.error('Error fetching abstract:', error);
-                document.getElementById('abstractContent').innerHTML = `
-                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <h3 class="text-red-800 font-semibold mb-2">Cannot Fetch Abstract</h3>
-                        <p class="text-red-700 mb-3">Unable to retrieve the abstract due to browser security restrictions.</p>
-                        <p class="text-red-700 text-sm">Try accessing the article directly at: <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" class="underline">https://pubmed.ncbi.nlm.nih.gov/${pmid}/</a></p>
-                    </div>
-                `;
-                document.getElementById('abstractDisplay').classList.remove('hidden');
+                </div>
+            `;
+            
+            document.getElementById('abstractContent').innerHTML = abstractHtml;
+            document.getElementById('abstractDisplay').classList.remove('hidden');
+            
+            // Re-initialize Lucide icons
+            lucide.createIcons();
+        }
+
+        function processManualAbstract(pmid) {
+            const title = document.getElementById('manualTitle').value.trim();
+            const author = document.getElementById('manualAuthor').value.trim();
+            const journal = document.getElementById('manualJournal').value.trim();
+            const year = document.getElementById('manualYear').value.trim();
+            const abstract = document.getElementById('manualAbstract').value.trim();
+            
+            if (!title || !abstract) {
+                alert('Please provide at least the title and abstract');
+                return;
             }
+            
+            currentAbstractData = {
+                pmcid: `PMC${pmid}`,
+                pmid: pmid,
+                doi: '',
+                title: title,
+                authors: author ? [author] : ['Not specified'],
+                firstAuthor: author || 'Not specified',
+                journal: journal || 'Not specified',
+                year: year ? parseInt(year) : new Date().getFullYear(),
+                abstract: abstract
+            };
+
+            // Display the processed abstract
+            const abstractHtml = `
+                <div class="space-y-4">
+                    <div class="bg-green-50 border border-green-200 rounded p-3 mb-4">
+                        <p class="text-green-800 font-medium">✓ Abstract data processed successfully</p>
+                    </div>
+                    <div>
+                        <span class="font-semibold">PMID:</span> ${currentAbstractData.pmid}
+                    </div>
+                    <div>
+                        <span class="font-semibold">Title:</span> ${currentAbstractData.title}
+                    </div>
+                    <div>
+                        <span class="font-semibold">First Author:</span> ${currentAbstractData.firstAuthor}
+                    </div>
+                    <div>
+                        <span class="font-semibold">Journal:</span> ${currentAbstractData.journal} (${currentAbstractData.year})
+                    </div>
+                    <div>
+                        <span class="font-semibold">Abstract:</span>
+                        <p class="mt-2 text-gray-700 leading-relaxed">${currentAbstractData.abstract}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('abstractContent').innerHTML = abstractHtml;
         }
 
         async function extractData() {
