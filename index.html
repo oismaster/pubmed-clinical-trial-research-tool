@@ -207,33 +207,129 @@
                 query += ` AND "${publicationType}"[Publication Type]`;
             }
 
+            // Show loading state
+            document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">Searching PubMed...</p>';
+            document.getElementById('searchResults').classList.remove('hidden');
+
             try {
-                // Use a CORS proxy to access NCBI APIs
-                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=10&retmode=json`;
                 
-                const response = await fetch(proxyUrl + encodeURIComponent(searchUrl));
-                const data = await response.json();
+                // Try multiple CORS proxy services
+                const proxyServices = [
+                    'https://cors-anywhere.herokuapp.com/',
+                    'https://api.allorigins.win/raw?url=',
+                    'https://cors.sh/',
+                    'https://proxy.cors.sh/'
+                ];
+
+                let data = null;
+                let lastError = null;
+
+                for (const proxy of proxyServices) {
+                    try {
+                        const proxyUrl = proxy.includes('allorigins') ? 
+                            proxy + encodeURIComponent(searchUrl) : 
+                            proxy + searchUrl;
+                        
+                        const response = await fetch(proxyUrl, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const text = await response.text();
+                            data = JSON.parse(text);
+                            break;
+                        }
+                    } catch (error) {
+                        lastError = error;
+                        console.log(`Proxy ${proxy} failed:`, error);
+                        continue;
+                    }
+                }
+
+                // If all proxies fail, try direct access (might work in some browsers/networks)
+                if (!data) {
+                    try {
+                        const response = await fetch(searchUrl);
+                        data = await response.json();
+                    } catch (error) {
+                        throw lastError || error;
+                    }
+                }
                 
-                if (data.esearchresult && data.esearchresult.idlist.length > 0) {
+                if (data && data.esearchresult && data.esearchresult.idlist.length > 0) {
                     const ids = data.esearchresult.idlist;
                     await fetchArticleDetails(ids);
                 } else {
                     document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">No results found</p>';
-                    document.getElementById('searchResults').classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Search error:', error);
-                alert('Error searching PubMed. This may be due to network restrictions. Please try again or use a different network.');
+                document.getElementById('resultsList').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h3 class="text-red-800 font-semibold mb-2">Unable to Search PubMed</h3>
+                        <p class="text-red-700 mb-3">This appears to be a browser security restriction. Please try one of these solutions:</p>
+                        <ul class="text-red-700 text-sm space-y-1 list-disc list-inside">
+                            <li>Use Chrome/Edge and temporarily disable CORS (start with --disable-web-security --user-data-dir=/tmp/chrome_dev)</li>
+                            <li>Install a CORS browser extension like "CORS Unblock"</li>
+                            <li>Use Firefox which may have different CORS policies</li>
+                            <li>Access this tool through a web server instead of opening the file directly</li>
+                        </ul>
+                    </div>
+                `;
             }
         }
 
         async function fetchArticleDetails(ids) {
             try {
-                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(',')}&retmode=json`;
-                const response = await fetch(proxyUrl + encodeURIComponent(summaryUrl));
-                const data = await response.json();
+                
+                // Try multiple CORS proxy services
+                const proxyServices = [
+                    'https://cors-anywhere.herokuapp.com/',
+                    'https://api.allorigins.win/raw?url=',
+                    'https://cors.sh/',
+                    'https://proxy.cors.sh/'
+                ];
+
+                let data = null;
+                let lastError = null;
+
+                for (const proxy of proxyServices) {
+                    try {
+                        const proxyUrl = proxy.includes('allorigins') ? 
+                            proxy + encodeURIComponent(summaryUrl) : 
+                            proxy + summaryUrl;
+                        
+                        const response = await fetch(proxyUrl, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const text = await response.text();
+                            data = JSON.parse(text);
+                            break;
+                        }
+                    } catch (error) {
+                        lastError = error;
+                        console.log(`Proxy ${proxy} failed for article details:`, error);
+                        continue;
+                    }
+                }
+
+                // If all proxies fail, try direct access
+                if (!data) {
+                    try {
+                        const response = await fetch(summaryUrl);
+                        data = await response.json();
+                    } catch (error) {
+                        throw lastError || error;
+                    }
+                }
                 
                 const results = [];
                 for (const id of ids) {
@@ -253,11 +349,15 @@
                     displaySearchResults(results);
                 } else {
                     document.getElementById('resultsList').innerHTML = '<p class="text-gray-500">No article details could be retrieved</p>';
-                    document.getElementById('searchResults').classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Error fetching article details:', error);
-                alert('Error fetching article details. This may be due to network restrictions. Please try again or use a different network.');
+                document.getElementById('resultsList').innerHTML = `
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h3 class="text-yellow-800 font-semibold mb-2">Cannot Fetch Article Details</h3>
+                        <p class="text-yellow-700">Unable to retrieve article information due to browser restrictions.</p>
+                    </div>
+                `;
             }
         }
 
@@ -287,10 +387,51 @@
 
         async function displayAbstract(pmid) {
             try {
-                const proxyUrl = 'https://api.allorigins.win/raw?url=';
                 const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
-                const response = await fetch(proxyUrl + encodeURIComponent(abstractUrl));
-                const xmlText = await response.text();
+                
+                // Try multiple CORS proxy services
+                const proxyServices = [
+                    'https://cors-anywhere.herokuapp.com/',
+                    'https://api.allorigins.win/raw?url=',
+                    'https://cors.sh/',
+                    'https://proxy.cors.sh/'
+                ];
+
+                let xmlText = null;
+                let lastError = null;
+
+                for (const proxy of proxyServices) {
+                    try {
+                        const proxyUrl = proxy.includes('allorigins') ? 
+                            proxy + encodeURIComponent(abstractUrl) : 
+                            proxy + abstractUrl;
+                        
+                        const response = await fetch(proxyUrl, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            xmlText = await response.text();
+                            break;
+                        }
+                    } catch (error) {
+                        lastError = error;
+                        console.log(`Proxy ${proxy} failed for abstract:`, error);
+                        continue;
+                    }
+                }
+
+                // If all proxies fail, try direct access
+                if (!xmlText) {
+                    try {
+                        const response = await fetch(abstractUrl);
+                        xmlText = await response.text();
+                    } catch (error) {
+                        throw lastError || error;
+                    }
+                }
                 
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
@@ -355,7 +496,14 @@
                 
             } catch (error) {
                 console.error('Error fetching abstract:', error);
-                alert('Error fetching abstract. This may be due to network restrictions. Please try again or use a different network.');
+                document.getElementById('abstractContent').innerHTML = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h3 class="text-red-800 font-semibold mb-2">Cannot Fetch Abstract</h3>
+                        <p class="text-red-700 mb-3">Unable to retrieve the abstract due to browser security restrictions.</p>
+                        <p class="text-red-700 text-sm">Try accessing the article directly at: <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" class="underline">https://pubmed.ncbi.nlm.nih.gov/${pmid}/</a></p>
+                    </div>
+                `;
+                document.getElementById('abstractDisplay').classList.remove('hidden');
             }
         }
 
