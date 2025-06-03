@@ -256,18 +256,25 @@
         function displaySearchResults(results) {
             const resultsHtml = results.map(result => `
                 <div class="border-b border-gray-200 pb-4 mb-4 last:border-b-0">
-                    <h4 class="font-semibold text-blue-600 cursor-pointer hover:text-blue-800" onclick="displayAbstract('${result.pmid}')">
+                    <h4 class="font-semibold text-blue-600 mb-2">
                         ${result.title}
                     </h4>
                     <p class="text-sm text-gray-600 mt-1">
                         ${result.authors} | ${result.journal} | ${result.year}
                     </p>
                     <p class="text-xs text-gray-500 mt-1">PMID: ${result.pmid}</p>
+                    <button onclick="displayAbstract('${result.pmid}')" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm flex items-center gap-2">
+                        <i data-lucide="file-text"></i>
+                        Display Abstract
+                    </button>
                 </div>
             `).join('');
             
             document.getElementById('resultsList').innerHTML = resultsHtml;
             document.getElementById('searchResults').classList.remove('hidden');
+            
+            // Re-initialize Lucide icons for the new buttons
+            lucide.createIcons();
         }
 
         async function displayAbstract(pmid) {
